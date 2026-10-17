@@ -12,14 +12,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import com.example.patitassanas.ui.PantallaAgendar
+import com.example.patitassanas.ui.PantallaCitas
+import com.example.patitassanas.ui.PantallaConsultas
 import com.example.patitassanas.ui.PantallaInicio
-import com.example.patitassanas.ui.PantallaResumen
 import com.example.patitassanas.ui.PantallaServicios
 import com.example.patitassanas.ui.theme.PatitasSanasTheme
 
@@ -31,7 +31,7 @@ class MainActivity : ComponentActivity() {
             PatitasSanasTheme {
                 Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                     Box(Modifier.systemBarsPadding()) {
-                        AppPatitasSanas(onSalir = { finish() }) // Salir → cierra la app
+                        AppPatitasSanas(onSalir = { finish() })
                     }
                 }
             }
@@ -39,42 +39,35 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-enum class Pantalla { INICIO, AGENDAR, RESUMEN, SERVICIOS }
-
-data class Cita(
-    val propietario: String,
-    val telefono: String,
-    val fecha: String,
-    val hora: String,
-    val raza: String,
-    val tamano: String
-)
-
-// Permite conservar la cita al rotar la pantalla
-private val CitaSaver = listSaver<Cita?, String>(
-    save = { c -> if (c == null) emptyList() else listOf(c.propietario, c.telefono, c.fecha, c.hora, c.raza, c.tamano) },
-    restore = { l -> if (l.isEmpty()) null else Cita(l[0], l[1], l[2], l[3], l[4], l[5]) }
-)
+enum class Pantalla { INICIO, CITAS, CONSULTAS, SERVICIOS }
 
 @Composable
 fun AppPatitasSanas(onSalir: () -> Unit) {
     var pantalla by rememberSaveable { mutableStateOf(Pantalla.INICIO) }
-    var cita by rememberSaveable(stateSaver = CitaSaver) { mutableStateOf<Cita?>(null) }
+    // id de la cita que se va a editar en el formulario (0 = cita nueva)
+    var idEditar by rememberSaveable { mutableIntStateOf(0) }
 
-    // El botón "atrás" del teléfono regresa al inicio desde cualquier pantalla interna
-    BackHandler(enabled = pantalla != Pantalla.INICIO) { pantalla = Pantalla.INICIO }
+    // Atrás: desde la lista regresa al formulario; desde las demás pantallas, al inicio
+    BackHandler(enabled = pantalla != Pantalla.INICIO) {
+        if (pantalla == Pantalla.CONSULTAS) { idEditar = 0; pantalla = Pantalla.CITAS }
+        else pantalla = Pantalla.INICIO
+    }
 
     when (pantalla) {
         Pantalla.INICIO -> PantallaInicio(
-            onAgendar = { pantalla = Pantalla.AGENDAR },
+            onAgendar = { idEditar = 0; pantalla = Pantalla.CITAS },
             onServicios = { pantalla = Pantalla.SERVICIOS },
             onSalir = onSalir
         )
-        Pantalla.AGENDAR -> PantallaAgendar(
-            onCancelar = { pantalla = Pantalla.INICIO },            // sin guardar
-            onGuardar = { nueva -> cita = nueva; pantalla = Pantalla.RESUMEN }
+        Pantalla.CITAS -> PantallaCitas(
+            idEditar = idEditar,
+            onConsultar = { pantalla = Pantalla.CONSULTAS },
+            onVolver = { pantalla = Pantalla.INICIO }
         )
-        Pantalla.RESUMEN -> cita?.let { PantallaResumen(it) { pantalla = Pantalla.INICIO } }
+        Pantalla.CONSULTAS -> PantallaConsultas(
+            onEditar = { id -> idEditar = id; pantalla = Pantalla.CITAS },
+            onVolver = { idEditar = 0; pantalla = Pantalla.CITAS }
+        )
         Pantalla.SERVICIOS -> PantallaServicios { pantalla = Pantalla.INICIO }
     }
 }
